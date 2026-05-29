@@ -12,7 +12,10 @@ use Obelaw\Ium\Url\Models\Link;
 use Obelaw\Ium\Url\Models\Click;
 use Obelaw\Ium\Url\Utils\UserAgentParser;
 use Obelaw\Ium\Url\Utils\IpAnonymizer;
+use Obelaw\Ium\Url\Data\UrlStatsData;
+use Obelaw\Ium\Url\Data\UrlStatsResultData;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class UrlService
@@ -136,5 +139,81 @@ class UrlService
             'clicks_by_referrer' => $clicksByReferrer,
             'recent_clicks' => $recentClicks,
         ];
+    }
+
+    /**
+     * Get statistics and reporting metrics for a link.
+     * Captures both total interactions and unique visitors (distinct IP + UA combinations).
+     *
+     * @param UrlStatsData $data
+     * @return UrlStatsResultData
+     */
+    public function stats(UrlStatsData $data): UrlStatsResultData
+    {
+        $link = Link::findOrFail($data->linkId);
+
+        $totalQuery = $link->clicks();
+        
+        if ($data->startDate) {
+            $totalQuery->where('created_at', '>=', $data->startDate);
+        }
+        if ($data->endDate) {
+            $totalQuery->where('created_at', '<=', $data->endDate);
+        }
+
+        $clicks = $totalQuery->get();
+        $totalClicks = $clicks->count();
+
+        // High-performance Unique Visitor calculation
+        // Distinct count of combined (IP address, user agent) pairs
+        $uniqueCountQuery = DB::table(function ($subQuery) use ($data) {
+            $subQuery->from('ium_url_clicks')
+                ->where('link_id', $data->linkId)
+                ->select('ip_address', 'user_agent')
+                ->distinct();
+
+            if ($data->startDate) {
+                $subQuery->where('created_at', '>=', $data->startDate);
+            }
+            if ($data->endDate) {
+                $subQuery->where('created_at', '<=', $data->endDate);
+            }
+        }, 'distinct_clicks');
+
+        $uniqueClicks = $uniqueCountQuery->count();
+
+        // Calculate unique ratio (Unique Visitors relative to Total Clicks)
+        $uniqueRatio = $totalClicks > 0 
+            ? round(($uniqueClicks / $totalClicks) * 100, 2) 
+            : 0.0;
+
+        $clicksByDevice = $clicks->groupBy('device_type')
+            ->map(fn($item) => $item->count())
+            ->toArray();
+
+        $clicksByReferrer = $clicks->groupBy(function ($click) {
+                if (empty($click->referrer)) {
+                    return 'Direct';
+                }
+                $parsed = parse_url($click->referrer, PHP_URL_HOST);
+                return $parsed ?: 'Unknown';
+            })
+            ->map(fn($item) => $item->count())
+            ->toArray();
+
+        $recentClicks = $clicks->sortByDesc('created_at')
+            ->take(10)
+            ->values()
+            ->toArray();
+
+        return new UrlStatsResultData(
+            link: $link,
+            totalClicks: $totalClicks,
+            uniqueClicks: $uniqueClicks,
+            uniqueRatio: $uniqueRatio,
+            clicksByDevice: $clicksByDevice,
+            clicksByReferrer: $clicksByReferrer,
+            recentClicks: $recentClicks
+        );
     }
 }

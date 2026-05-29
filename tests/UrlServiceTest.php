@@ -6,6 +6,8 @@ use Carbon\Carbon;
 use Obelaw\Ium\Url\Data\ShortenUrlDTO;
 use Obelaw\Ium\Url\Data\TrackUrlDTO;
 use Obelaw\Ium\Url\Data\UrlFilterDTO;
+use Obelaw\Ium\Url\Data\UrlStatsData;
+use Obelaw\Ium\Url\Data\UrlStatsResultData;
 use Obelaw\Ium\Url\Models\Link;
 use Obelaw\Ium\Url\Models\Click;
 use Obelaw\Ium\Url\Services\UrlService;
@@ -114,4 +116,44 @@ it('returns correct analytics and respects filtering', function () {
     expect($filteredAnalytics['total_clicks'])->toBe(1);
     expect($filteredAnalytics['clicks_by_device']['mobile'])->toBe(1);
     expect(isset($filteredAnalytics['clicks_by_device']['desktop']))->toBeFalse();
+});
+
+it('calculates total vs unique clicks correctly and filters by date', function () {
+    $dto = new ShortenUrlDTO(url: 'https://google.com');
+    $link = ium()->url()->shorten($dto);
+
+    $ua1 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/113.0.0.0';
+    $ua2 = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) Mobile';
+
+    // Click 1: User A (IP 1.1.1.1, UA 1)
+    ium()->url()->track($link->code, new TrackUrlDTO(ipAddress: '1.1.1.1', userAgent: $ua1));
+    // Click 2: User A again (IP 1.1.1.1, UA 1) -> Same IP + UA (non-unique)
+    ium()->url()->track($link->code, new TrackUrlDTO(ipAddress: '1.1.1.1', userAgent: $ua1));
+
+    // Click 3: User B (IP 1.1.1.1, UA 2) -> Same IP, different UA (Unique Visitor)
+    ium()->url()->track($link->code, new TrackUrlDTO(ipAddress: '1.1.1.1', userAgent: $ua2));
+
+    // Click 4: User C (IP 2.2.2.2, UA 1) -> Different IP, same UA (Unique Visitor)
+    ium()->url()->track($link->code, new TrackUrlDTO(ipAddress: '2.2.2.2', userAgent: $ua1));
+
+    // Execute stats retrieval
+    $statsData = new UrlStatsData(linkId: $link->id);
+    $result = ium()->url()->stats($statsData);
+
+    expect($result)->toBeInstanceOf(UrlStatsResultData::class);
+    expect($result->totalClicks)->toBe(4);
+    expect($result->uniqueClicks)->toBe(3); // User A, User B, User C
+    expect($result->uniqueRatio)->toBe(75.0); // 3 / 4 * 100
+    expect($result->clicksByDevice['desktop'])->toBe(3); // UA 1 is desktop (3 times), UA 2 is mobile (1 time)
+    expect($result->clicksByDevice['mobile'])->toBe(1);
+
+    // Test with date filter (start date tomorrow should yield 0)
+    $filteredStatsData = new UrlStatsData(
+        linkId: $link->id,
+        startDate: Carbon::now()->addDay()
+    );
+    $filteredResult = ium()->url()->stats($filteredStatsData);
+    expect($filteredResult->totalClicks)->toBe(0);
+    expect($filteredResult->uniqueClicks)->toBe(0);
+    expect($filteredResult->uniqueRatio)->toBe(0.0);
 });
