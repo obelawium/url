@@ -7,10 +7,10 @@ namespace Obelaw\Ium\Url\Data;
 use Carbon\Carbon;
 use InvalidArgumentException;
 
-readonly class ShortenUrlDTO
+readonly class ShortenUrlData
 {
     /**
-     * Create a new DTO instance.
+     * Create a new Data instance.
      *
      * @param string $url
      * @param string|null $code

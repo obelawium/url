@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace Obelaw\Ium\Url\Services;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Obelaw\Ium\Engine\ObelawConfigManager;
-use Obelaw\Ium\Url\Data\ShortenUrlDTO;
-use Obelaw\Ium\Url\Data\TrackUrlDTO;
-use Obelaw\Ium\Url\Data\UrlFilterDTO;
-use Obelaw\Ium\Url\Models\Link;
-use Obelaw\Ium\Url\Models\Click;
-use Obelaw\Ium\Url\Utils\UserAgentParser;
-use Obelaw\Ium\Url\Utils\IpAnonymizer;
+use Obelaw\Ium\Url\Data\ShortenUrlData;
+use Obelaw\Ium\Url\Data\TrackUrlData;
+use Obelaw\Ium\Url\Data\UrlFilterData;
 use Obelaw\Ium\Url\Data\UrlStatsData;
 use Obelaw\Ium\Url\Data\UrlStatsResultData;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
+use Obelaw\Ium\Url\Models\Link;
+use Obelaw\Ium\Url\Utils\IpAnonymizer;
+use Obelaw\Ium\Url\Utils\UserAgentParser;
 
 class UrlService
 {
@@ -25,10 +24,10 @@ class UrlService
     /**
      * Shorten a URL.
      *
-     * @param ShortenUrlDTO $dto
+     * @param ShortenUrlData $dto
      * @return Link
      */
-    public function shorten(ShortenUrlDTO $dto): Link
+    public function shorten(ShortenUrlData $dto): Link
     {
         $code = $dto->code;
 
@@ -56,10 +55,10 @@ class UrlService
      * Track a click for a shortened URL code.
      *
      * @param string $code
-     * @param TrackUrlDTO $dto
+     * @param TrackUrlData $dto
      * @return Link|null
      */
-    public function track(string $code, TrackUrlDTO $dto): ?Link
+    public function track(string $code, TrackUrlData $dto): ?Link
     {
         $link = Link::where('code', $code)->first();
 
@@ -87,10 +86,10 @@ class UrlService
      * Get analytics for a shortened URL.
      *
      * @param int $linkId
-     * @param UrlFilterDTO|null $filter
+     * @param UrlStatsData|null $filter
      * @return array
      */
-    public function analytics(int $linkId, ?UrlFilterDTO $filter = null): array
+    public function analytics(int $linkId, ?UrlFilterData $filter = null): array
     {
         $link = Link::findOrFail($linkId);
 

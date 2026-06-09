@@ -6,7 +6,7 @@ namespace Obelaw\Ium\Url\Data;
 
 use Carbon\Carbon;
 
-readonly class UrlFilterDTO
+readonly class UrlFilterData
 {
     /**
      * Create a new DTO instance.

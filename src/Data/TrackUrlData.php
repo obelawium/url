@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Obelaw\Ium\Url\Data;
 
-readonly class TrackUrlDTO
+readonly class TrackUrlData
 {
     /**
      * Create a new DTO instance.
